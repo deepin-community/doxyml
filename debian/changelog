@@ -1,3 +1,10 @@
+doxyqml (0.5.1-1) unstable; urgency=medium
+
+  * New upstream release.
+     Update to 0.5.1
+
+ -- Han Gao <gaohan@iscas.ac.cn>  Mon, 09 Jan 2023 18:08:09 +0800
+
 doxyqml (0.3.0-1.1) unstable; urgency=medium
 
   * Non-maintainer upload.

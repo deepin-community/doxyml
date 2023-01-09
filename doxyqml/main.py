@@ -6,13 +6,11 @@ import os
 import re
 import sys
 
-from . import qmlparser
-from .lexer import Lexer, LexerError
-from .qmlclass import QmlClass
+import doxyqml.qmlparser as qmlparser
 
-
-VERSION = "0.3.0"
-DESCRIPTION = "Doxygen input filter for QML files"
+from doxyqml import __version__, DESCRIPTION
+from doxyqml.lexer import Lexer, LexerError
+from doxyqml.qmlclass import QmlClass
 
 
 def coord_for_idx(text, idx):
@@ -40,7 +38,7 @@ def info_for_error_at(text, idx):
     return row, msg
 
 
-def parse_args():
+def parse_args(argv):
     parser = argparse.ArgumentParser(
         prog="doxyqml",
         description=DESCRIPTION,
@@ -48,13 +46,22 @@ def parse_args():
     parser.add_argument("-d", "--debug",
                         action="store_true",
                         help="Log debug info to stderr")
+    parser.add_argument("--namespace",
+                        action='append',
+                        default=[],
+                        help="Wrap the generated C++ classes in NAMESPACE")
+    parser.add_argument("--no-since-version",
+                        action="store_true",
+                        default=False,
+                        help="Don't append \"Since: [version]\" info to docstring")
     parser.add_argument('--version',
                         action='version',
-                        version='%%(prog)s %s' % VERSION)
+                        version='%%(prog)s %s' % __version__)
     parser.add_argument("qml_file",
                         help="The QML file to parse")
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
+
 
 def find_qmldir_file(qml_file):
     dir = os.path.dirname(qml_file)
@@ -78,7 +85,7 @@ def find_qmldir_file(qml_file):
         dir = parent
 
 
-def find_classname(qml_file):
+def find_classname(qml_file, namespace=None):
     classname = os.path.basename(qml_file).split(".")[0]
     classversion = None
     modulename = ''
@@ -107,13 +114,23 @@ def find_classname(qml_file):
     if modulename:
         classname = modulename + '.' + classname
 
+    if namespace:
+        classname = '.'.join(namespace) + '.' + classname
+
     return classname, classversion
 
-def main():
-    args = parse_args()
+
+def main(argv=None, out=None):
+    if argv is None:
+        argv = sys.argv[1:]
+    if out is None:
+        out == sys.stdout
+
+    args = parse_args(argv)
 
     name = args.qml_file
-    text = open(name).read()
+    namespace = args.namespace
+    text = open(name, encoding="utf-8").read()
 
     lexer = Lexer(text)
     try:
@@ -131,7 +148,10 @@ def main():
         for token in lexer.tokens:
             print("%20s %s" % (token.type, token.value))
 
-    classname, classversion = find_classname(name)
+    classname, classversion = find_classname(name, namespace)
+    if args.no_since_version:
+        classversion = None
+
     qml_class = QmlClass(classname, classversion)
 
     try:
@@ -145,7 +165,7 @@ def main():
         else:
             return -1
 
-    print(qml_class)
+    print(qml_class, file=out)
 
     return 0
 

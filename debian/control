@@ -2,11 +2,12 @@ Source: doxyqml
 Priority: optional
 Section: devel
 Maintainer: Loïc Minier <lool@debian.org>
-Build-Depends: debhelper (>= 9),
-               python3 (>= 3.0),
+Build-Depends: debhelper (>= 13),
+               python3 (>= 3.9),
                dh-python,
-               python3-distutils
-Standards-Version: 4.0.0
+               python3-distutils,
+               python3-setuptools
+Standards-Version: 4.6.1
 Homepage: http://agateau.com/projects/doxyqml
 
 Package: doxyqml

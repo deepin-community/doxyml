@@ -1,9 +1,12 @@
 [![Build Status](https://travis-ci.org/agateau/doxyqml.svg?branch=master)](https://travis-ci.org/agateau/doxyqml)
+[![Coverage Status](https://coveralls.io/repos/github/agateau/doxyqml/badge.svg?branch=master)](https://coveralls.io/github/agateau/doxyqml?branch=master)
 
 # Goals
 
-Doxyqml turns .qml into pseudo-C++ which Doxygen can then use to generate
-documentation.
+Doxyqml lets you use Doxygen to document your QML classes.
+
+It integrates as a Doxygen input filter to turn .qml files into pseudo-C++
+which Doxygen can then use to generate documentation.
 
 # Installing
 
@@ -17,16 +20,16 @@ or manually with:
 
 # Telling Doxygen to use Doxyqml
 
-To tell Doxygen about Doxyqml you must make a few changes to your Doxygen file.
+To tell Doxygen about Doxyqml you must make a few changes to your Doxygen
+configuration file.
 
 1. Add the .qml extension to the `FILTER_PATTERNS` key:
 
         FILTER_PATTERNS = *.qml=doxyqml
 
-    Note: On Windows you may need to use the full path of the `doxyqml.py` file
-    instead. For example if you installed Python 3.5 in `C:\Python35`, use this:
-
-        FILTER_PATTERNS = *.qml=C:\Python35\Lib\site-packages\doxyqml\doxyqml.py
+   Note: on Windows Doxyqml installs itself in the `Scripts` folder of your
+   Python installation. If this folder is not in the PATH, either add it or use
+   the full path to Doxyqml here (but that is less portable across machines)
 
 2. Add the .qml extension to `FILE_PATTERNS`:
 
@@ -39,8 +42,9 @@ To tell Doxygen about Doxyqml you must make a few changes to your Doxygen file.
 
 # Documenting types
 
-QML is partly-typed: functions are untyped, properties and signals are. Doxyqml
-provides a way to define types when they are missing or not precise enough.
+QML is partially-typed: functions are untyped, properties and signals are.
+Doxyqml provides a way to define types when they are missing or not precise
+enough.
 
 ## Functions
 
@@ -77,3 +81,9 @@ parameter name.
      * @param user The user which logged in
      */
     signal loggedIn(User user)
+
+## Extracting internal elements
+
+QML elements with an id are exported as private member variables. If you
+set the `EXTRACT_ALL` and `EXTRACT_PRIVATE` Doxygen keys to `YES`, then
+these elements will be visible in the generated documentation.

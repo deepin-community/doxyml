@@ -16,9 +16,9 @@ class QmlParserTestCase(TestCase):
         self.assertEqual(qmlclass.base_name, "Item")
 
         functions = qmlclass.get_functions()
+        self.assertEqual(len(functions), 2)
         self.assertEqual(functions[0].name, "foo")
         self.assertEqual(functions[1].name, "bar")
-        self.assertEqual(len(functions), 2)
 
     def test_default_property(self):
         src = """Item {
@@ -33,6 +33,7 @@ class QmlParserTestCase(TestCase):
         qmlparser.parse(lexer.tokens, qmlclass)
 
         properties = qmlclass.get_properties()
+        self.assertEqual(len(properties), 2)
         self.assertEqual(properties[0].name, "v1")
         self.assertEqual(properties[0].type, "int")
         self.assertEqual(properties[0].doc, "/// v1 doc")
@@ -56,6 +57,7 @@ class QmlParserTestCase(TestCase):
         qmlparser.parse(lexer.tokens, qmlclass)
 
         properties = qmlclass.get_properties()
+        self.assertEqual(len(properties), 2)
         self.assertEqual(properties[0].name, "v1")
         self.assertEqual(properties[0].type, "int")
         self.assertEqual(properties[0].doc, "/// v1 doc")
@@ -77,6 +79,7 @@ class QmlParserTestCase(TestCase):
         qmlparser.parse(lexer.tokens, qmlclass)
 
         properties = qmlclass.get_properties()
+        self.assertEqual(len(properties), 1)
         self.assertEqual(properties[0].name, "varProperty")
         self.assertEqual(properties[0].type, "var")
 
@@ -91,8 +94,28 @@ class QmlParserTestCase(TestCase):
         qmlparser.parse(lexer.tokens, qmlclass)
 
         properties = qmlclass.get_properties()
+        self.assertEqual(len(properties), 1)
         self.assertEqual(properties[0].name, "fnProperty")
         self.assertEqual(properties[0].type, "var")
+
+    def test_multiline_string(self):
+        src = """Item {
+            prop1: "A string that spans \\
+            multiple lines"
+            /// prop2 doc
+            property string prop2: "bar"
+            }"""
+
+        lexer = Lexer(src)
+        lexer.tokenize()
+        qmlclass = QmlClass("Foo")
+        qmlparser.parse(lexer.tokens, qmlclass)
+
+        properties = qmlclass.get_properties()
+        self.assertEqual(len(properties), 1)
+        self.assertEqual(properties[0].name, "prop2")
+        self.assertEqual(properties[0].type, "string")
+        self.assertEqual(properties[0].doc, "/// prop2 doc")
 
     def test_normal_arguments(self):
         src = """Item {
@@ -107,6 +130,7 @@ class QmlParserTestCase(TestCase):
         qmlparser.parse(lexer.tokens, qmlclass)
 
         functions = qmlclass.get_functions()
+        self.assertEqual(len(functions), 1)
         self.assertEqual(functions[0].name, "foo")
         self.assertEqual(functions[0].type, "void")
 
@@ -123,5 +147,27 @@ class QmlParserTestCase(TestCase):
         qmlparser.parse(lexer.tokens, qmlclass)
 
         functions = qmlclass.get_functions()
+        self.assertEqual(len(functions), 1)
         self.assertEqual(functions[0].name, "foo")
         self.assertEqual(functions[0].type, "void")
+
+    def test_signals(self):
+        src = """Item {
+                     signal userAdded(string username, int age)
+                 }"""
+
+        lexer = Lexer(src)
+        lexer.tokenize()
+        qmlclass = QmlClass("Foo")
+        qmlparser.parse(lexer.tokens, qmlclass)
+
+        signals = qmlclass.get_signals()
+        self.assertEqual(len(signals), 1)
+        signal = signals[0]
+        self.assertEqual(signal.name, "userAdded")
+
+        self.assertEqual(len(signal.args), 2)
+        self.assertEqual(signal.args[0].name, "username")
+        self.assertEqual(signal.args[0].type, "string")
+        self.assertEqual(signal.args[1].name, "age")
+        self.assertEqual(signal.args[1].type, "int")
