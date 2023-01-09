@@ -3,10 +3,14 @@
 
 import argparse
 import difflib
+import json
 import os
 import shutil
 import sys
 import subprocess
+
+from doxyqml.main import main as doxyqml_main
+
 
 def list_files(topdir):
     result = []
@@ -18,14 +22,44 @@ def list_files(topdir):
 
     return result
 
-class Test(object):
-    def __init__(self, name, executable):
-        self.name = name
+
+class SubprocessRunner:
+    def __init__(self, executable):
         self.executable = executable
+
+    def run(self, qml_file, args, stdout, cwd):
+        return subprocess.call(
+            [self.executable, qml_file] + args,
+            stdout=stdout, cwd=cwd)
+
+
+class ImportRunner:
+    def run(self, qml_file, args, stdout, cwd):
+        pwd = os.getcwd()
+        os.chdir(cwd)
+        try:
+            return doxyqml_main([qml_file] + args, out=stdout)
+        finally:
+            os.chdir(pwd)
+
+
+class Test(object):
+    def __init__(self, name, runner):
+        self.name = name
+        self.runner = runner
         self.input_dir = os.path.join(self.name, "input")
         self.output_dir = os.path.join(self.name, "output")
         self.expected_dir = os.path.join(self.name, "expected")
+        self._read_args()
 
+    def _read_args(self):
+        args_json = os.path.join(self.name, "args.json")
+        if not os.path.exists(args_json):
+            self.args = []
+            return
+        with open(args_json) as f:
+            self.args = json.load(f)
+            assert type(self.args) is list
 
     def build(self):
         ok = True
@@ -44,21 +78,16 @@ class Test(object):
                 os.makedirs(out_dir)
 
             with open(out_path, "w") as out:
-                ret = subprocess.call(
-                    [self.executable, name],
-                    stdout=out,
-                    cwd=self.input_dir)
+                ret = self.runner.run(name, args=self.args, stdout=out, cwd=self.input_dir)
                 if ret != 0:
                     self.error("doxyqml failed on {}".format(name))
                     ok = False
         return ok
 
-
     def update(self):
         if os.path.exists(self.expected_dir):
             shutil.rmtree(self.expected_dir)
         shutil.copytree(self.output_dir, self.expected_dir)
-
 
     def compare(self):
         lst = list_files(self.expected_dir)
@@ -97,24 +126,29 @@ class Test(object):
 def main():
     script_dir = os.path.dirname(__file__) or "."
 
-    default_doxyqml = os.path.abspath(os.path.join(script_dir, os.pardir, os.pardir, "bin", "doxyqml"))
+    default_doxyqml = "doxyqml"
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-u", "--update",
-        help="Update expected output from test ID", metavar="ID")
+                        help="Update expected output from test ID", metavar="ID")
     parser.add_argument("--doxyqml", default=default_doxyqml,
-        help="Path to the doxyqml executable ({})".format(default_doxyqml))
+                        help="Path to the doxyqml executable ({})".format(default_doxyqml))
     parser.add_argument("test_id", nargs="?",
-        help="Run specified test only")
+                        help="Run specified test only")
+    parser.add_argument("--import", dest="import_", action="store_true",
+                        help="Import Doxyqml module instead of using the executable. Useful for code coverage.")
     args = parser.parse_args()
 
-    executable = os.path.abspath(args.doxyqml)
+    if args.import_:
+        runner = ImportRunner()
+    else:
+        runner = SubprocessRunner(args.doxyqml)
 
     os.chdir(script_dir)
 
     if args.update:
         print("Updating {}...".format(args.update))
-        test = Test(args.update, executable)
+        test = Test(args.update, runner)
         if not test.build():
             return 1
         test.update()
@@ -130,7 +164,7 @@ def main():
     errors = 0
     for test_dir in test_list:
         print("Testing {}...".format(test_dir))
-        test = Test(test_dir, executable)
+        test = Test(test_dir, runner)
         if not (test.build() and test.compare()):
             errors += 1
             continue

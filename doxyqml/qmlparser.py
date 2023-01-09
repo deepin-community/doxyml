@@ -1,6 +1,6 @@
-from . import lexer
+import doxyqml.lexer as lexer
 
-from .qmlclass import QmlArgument, QmlProperty, QmlFunction, QmlSignal
+from doxyqml.qmlclass import QmlComponent, QmlArgument, QmlProperty, QmlFunction, QmlSignal, QmlAttribute
 
 
 class QmlParserError(Exception):
@@ -18,25 +18,31 @@ def parse_class_definition(reader, cls):
     token = reader.consume_wo_comments()
     if token.type != lexer.BLOCK_START:
         raise QmlParserError("Expected '{' after base class name", token)
-    last_comment = None
+    last_comment_token = None
     while not reader.at_end():
         token = reader.consume()
-        if token.type == lexer.COMMENT:
-            if last_comment:
-                cls.add_element(last_comment)
-            last_comment = token.value
+        if is_comment_token(token):
+            if last_comment_token:
+                cls.add_element(last_comment_token.value)
+            last_comment_token = token
         elif token.type == lexer.KEYWORD:
-            done = parse_class_content(reader, cls, token, last_comment)
-            last_comment = None
+            parse_class_content(reader, cls, token, last_comment_token)
+            last_comment_token = None
+        elif token.type == lexer.COMPONENT:
+            parse_class_component(reader, cls, token, last_comment_token)
+            last_comment_token = None
+        elif token.type == lexer.ATTRIBUTE:
+            parse_class_attribute(reader, cls, token, last_comment_token)
+            last_comment_token = None
         elif token.type == lexer.BLOCK_START:
             skip_block(reader)
         elif token.type == lexer.BLOCK_END:
             break
-    if last_comment:
-        cls.add_element(last_comment)
+    if last_comment_token:
+        cls.add_element(last_comment_token.value)
 
 
-def parse_class_content(reader, cls, token, doc):
+def parse_class_content(reader, cls, token, doc_token):
     keyword = token.value
     if keyword.endswith("property"):
         obj = parse_property(reader, keyword)
@@ -46,8 +52,37 @@ def parse_class_content(reader, cls, token, doc):
         obj = parse_signal(reader)
     else:
         raise QmlParserError("Unknown keyword '%s'" % keyword, token)
-    if doc is not None:
-        obj.doc = doc
+    if doc_token is not None:
+        obj.doc = doc_token.value
+        obj.doc_is_inline = (doc_token.type == lexer.ICOMMENT)
+    cls.add_element(obj)
+
+
+def parse_class_component(reader, cls, token, doc_token):
+    obj = QmlComponent(token.value)
+    parse_class_definition(reader, obj)
+
+    if doc_token is not None:
+        obj.comment = doc_token.value
+
+    cls.add_element(obj)
+
+
+def parse_class_attribute(reader, cls, token, doc_token):
+    obj = QmlAttribute()
+    obj.name = token.value
+
+    # Should be colon
+    token = reader.consume_expecting(lexer.CHAR)
+    token = reader.consume()
+    if token.type == lexer.BLOCK_START:
+        skip_block(reader)
+    else:
+        obj.value = token.value
+
+    if doc_token is not None:
+        obj.doc = doc_token.value
+
     cls.add_element(obj)
 
 
@@ -104,9 +139,16 @@ def parse_arguments(reader, typed=False):
             arg.type = arg_type
         else:
             arg = QmlArgument(token.value)
-        args.append(arg)
 
         token = reader.consume_expecting(lexer.CHAR)
+
+        if token.value == "=":
+            token = reader.consume_expecting([lexer.ELEMENT, lexer.STRING])
+            arg.default_value = token.value
+            token = reader.consume_expecting(lexer.CHAR)
+
+        args.append(arg)
+
         if token.value == ")":
             return args
         elif token.value != ",":
@@ -130,25 +172,30 @@ def skip_block(reader):
 def parse_header(reader, cls):
     while not reader.at_end():
         token = reader.consume()
-        if token.type == lexer.COMMENT:
+        if is_comment_token(token):
             cls.add_header_comment(token.value)
         elif token.type == lexer.IMPORT:
             cls.add_import(token.value)
         elif token.type == lexer.PRAGMA:
             cls.add_pragma(token.value)
-        elif token.type == lexer.ELEMENT:
+        elif token.type == lexer.COMPONENT:
             cls.base_name = token.value
             return
         else:
             raise QmlParserUnexpectedTokenError(token)
 
+
 def parse_footer(reader, cls):
     while not reader.at_end():
         token = reader.consume()
-        if token.type == lexer.COMMENT:
+        if is_comment_token(token):
             cls.add_footer_comment(token.value)
         else:
             raise QmlParserUnexpectedTokenError(token)
+
+
+def is_comment_token(token):
+    return token.type in (lexer.COMMENT, lexer.ICOMMENT)
 
 
 class TokenReader(object):
@@ -164,15 +211,21 @@ class TokenReader(object):
     def consume_wo_comments(self):
         while True:
             token = self.consume()
-            if token.type != lexer.COMMENT:
+            if not is_comment_token(token):
                 return token
 
-    def consume_expecting(self, type, value=None):
+    def consume_expecting(self, expected_types, value=None):
         token = self.consume_wo_comments()
-        if token.type != type:
-            raise QmlParserError("Expected token of type '%s', got '%s' instead" % (type, token.type), token)
+        if type(expected_types) is list:
+            if token.type not in expected_types:
+                raise QmlParserError(
+                    "Expected token of type '%s', got '%s' instead" % (expected_types, token.type), token)
+        elif token.type != expected_types:
+            raise QmlParserError(
+                "Expected token of type '%s', got '%s' instead" % (expected_types, token.type), token)
         if value is not None and token.value != value:
-            raise QmlParserError("Expected token with value '%s', got '%s' instead" % (value, token.value), token)
+            raise QmlParserError("Expected token with value '%s', got '%s' instead" % (
+                value, token.value), token)
         return token
 
     def at_end(self):
