@@ -2,7 +2,7 @@ Update NEWS:
 
     r!git log --pretty=format:'- \%s (\%an)' x.y.z-1..HEAD
 
-Bump version number in doxyqml/doxyqml.py
+Bump version number in doxyqml/__init__.py
 
 Commit
 
@@ -12,10 +12,9 @@ Create tarball:
 
 Install tarball in virtual env:
 
-    virtualenv --python python3 /tmp/doxyqml
-    . /tmp/doxyqml/bin/activate
-    cd /tmp/doxyqml
-    tar xf doxyqml-$version.tar.bz2
+    pew mktmpenv
+    cd /tmp
+    tar xf path/to/doxyqml/dists/doxyqml-$version.tar.bz2
     cd doxyqml-$version
     ./setup.py install
 
@@ -27,7 +26,13 @@ Run functional tests:
 
     ./tests/functional/tests.py
 
-If ok, create "x.y.z" tag:
+Check rendering of PyPI page:
+
+    pip install --upgrade twine 'readme_renderer[md]'
+    twine check
+    exit
+
+If OK, create "x.y.z" tag:
 
     git tag -a x.y.z
 
@@ -38,7 +43,7 @@ Push:
 
 Publish on PyPI:
 
-    ./setup.py sdist --formats=bztar upload
+    twine upload dists/doxyqml-$version.tar.bz2
 
 Update project page
 
